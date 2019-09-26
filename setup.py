@@ -35,6 +35,7 @@ setup(
         'Programming Language :: Python :: 3.7',
     ],
     extras_require={
-        'mysql': ['MySQL-python']
+        'mysql': ['MySQL-python'],
+        'web server': ['flask', 'tornado'],
     }
 )

@@ -59,6 +59,7 @@ def run(config, root):
 
 def init_api_file(pwd, api, config, sub_config):
     with open('%s%s.py' % (pwd, api), 'w') as writer:
+        writer.write("# -*- coding:utf-8 -*-\n")
         for method in sub_config['method']:
             content = API_FILE.format(
                 method=method, params=', '.join(sub_config['params'].keys()), 
