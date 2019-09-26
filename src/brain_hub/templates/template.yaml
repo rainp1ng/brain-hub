@@ -1,0 +1,28 @@
+brainhub:
+    name: project name
+    domain: localhost
+    port: 80
+    prefix: /
+    hub: tornado  # tornado, flask, django, japronto
+    log: 
+    static:  # static
+    threads: 10
+
+hello_world:  
+    comment: 
+    method: 
+        - get
+        -post
+    protocal: http  # https
+    version: 1.0.0
+    return: text  # text, json, redirect, file, template
+    params:
+        param1:
+            format: str
+            default: default value
+            comment: 这是第一个参数的注释
+        param2:
+            format: str
+            err_msg: this param is neccesary, if missed, throw this error message
+            comment: 
+

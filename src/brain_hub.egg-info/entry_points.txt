@@ -1,0 +1,3 @@
+[console_scripts]
+brainhub = brain_hub.server_hub:main
+
