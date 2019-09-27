@@ -107,5 +107,5 @@ def start(config, root):
     # app.listen(config[NAME][PORT], address=config[NAME][HOST])
     server = HTTPServer(application)
     server.bind(config[NAME][PORT], config[NAME][HOST])
-    server.start(config[NAME][THREADS])
+    server.start(config[NAME][PROCESSES])
     tornado.ioloop.IOLoop.current().start()
