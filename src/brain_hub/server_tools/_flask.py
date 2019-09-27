@@ -35,16 +35,16 @@ RETURN_TYPE = {
 
 
 def gen_func(config, root, api_name, method='GET'):
-    paths = api_name.split("/")
+    paths = api_name.split(SLASH)
     if len(paths) > 1:
-        path = '/'.join(paths[: -1])
+        path = SLASH.join(paths[: -1])
         sys.path.append(root + path)
     _module = __import__(paths[-1])
     
     def api_func(*argv, **kwargv):
         # 获取传入的参数
-        for param in config['params']:
-            default = config['params'][param].get('default')
+        for param in config[PARAMS]:
+            default = config[PARAMS][param].get('default')
             if request.method == "POST":
                 kwargv[param] = request.form.get(param, default)
             elif request.method == "GET":
@@ -79,7 +79,7 @@ def gen_func(config, root, api_name, method='GET'):
 
 def gen_apis(config, root, app, func=None):
     apis = []
-    prefix = config[NAME]['prefix']
+    prefix = config[NAME][PREFIX]
     for i, api in enumerate(config):
         if api == NAME:
             continue
@@ -96,18 +96,17 @@ def gen_apis(config, root, app, func=None):
                 ApiViewIndex.post = gen_func(config[api], root, api, method=method)
 
         app.add_url_rule(postfix, methods=_methods, view_func=ApiViewIndex.as_view(postfix))
-        # app.add_url_rule(postfix, methods=methods, view_func=lambda : gen_func(config[api], root, api, methods), endpoint=postfix)
 
     return apis
 
 
 def gen_app(config, root):
-    app = Flask(config[NAME]['name'], template_folder=root + config[NAME]['template'], 
-        static_folder=root + config[NAME]['static'], static_url_path="/%s" % config[NAME]['static'])
+    app = Flask(config[NAME][PROJECT_NAME], template_folder=root + config[NAME][TEMPLATE], 
+        static_folder=root + config[NAME][STATIC], static_url_path="/%s" % config[NAME][STATIC])
     gen_apis(config, root, app)
     return app
 
 
 def start(config, root):
     app = gen_app(config, root)
-    app.run(host=config[NAME]['domain'], port=config[NAME]['port'], debug=config[NAME]['debug'] == 'True')
+    app.run(host=config[NAME][HOST], port=config[NAME][PORT], debug=config[NAME][DEBUG] == 'True')
