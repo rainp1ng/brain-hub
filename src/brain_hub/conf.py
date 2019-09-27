@@ -1,14 +1,21 @@
 # project config name
 NAME = 'brainhub'
 PROCESSES = 'processes'
+DEFAULT_PROCESSES = '1'
 THREADS = 'threads'
+DEFAULT_THREADS = '1'
 HOST = 'domain'
+DEFAULT_HOST = 'localhost'
 PORT = 'port'
 PREFIX = 'prefix'
+DEFAULT_PREFIX = '/'
 POSTFIX = 'postfix'
 HUB = 'hub'
+DEFAULT_HUB = 'tornado'
 LOG = 'log'
+DEFAULT_LOG = 'log'
 STATIC = 'static'
+TEMPLATE = 'template'
 DEBUG = 'debug'
 
 # api config name
