@@ -32,16 +32,16 @@ RETURN_TYPE = {
 
 
 def gen_func(config, root, api_name, method='get'):
-    paths = api_name.split("/")
+    paths = api_name.split(SLASH)
     if len(paths) > 1:
-        path = '/'.join(paths[: -1])
+        path = SLASH.join(paths[: -1])
         sys.path.append(root + path)
     _module = __import__(paths[-1])
     
     def pfunc(self, *argv, **kwargv):
         # 获取传入的参数
-        for param in config['params']:
-            default = config['params'][param].get('default')
+        for param in config[PARAMS]:
+            default = config[PARAMS][param].get('default')
             kwargv[param] = self.get_argument(param, default)
         
         # 获取header信息
@@ -67,7 +67,7 @@ def gen_api(config, root, api_name, api_postfix):
     class APIRequestHandler(tornado.web.RequestHandler):
         pass
 
-    for method in config['method']:
+    for method in config[METHODS]:
         func = gen_func(config, root, api_name, method)
         if method == 'get':
             APIRequestHandler.get = func
@@ -79,7 +79,7 @@ def gen_api(config, root, api_name, api_postfix):
 
 def gen_apis(config, root):
     apis = []
-    prefix = config[NAME]['prefix']
+    prefix = config[NAME][PREFIX]
     for api in config:
         if api == NAME:
             continue
@@ -93,10 +93,10 @@ def gen_apis(config, root):
 
 def gen_app(config, root, apis):
     settings={
-        "template_path": root + config[NAME]['template'],
-        "static_path": root + config[NAME]['static'],
+        "template_path": root + config[NAME][TEMPLATE],
+        "static_path": root + config[NAME][STATIC],
         # static文件设置别名
-        "static_url_prefix": "/%s/" % config[NAME]['static'],
+        "static_url_prefix": "/%s/" % config[NAME][STATIC],
     }
     return tornado.web.Application(apis, **settings)
 
@@ -104,8 +104,8 @@ def gen_app(config, root, apis):
 def start(config, root):
     apis = gen_apis(config, root)
     app = gen_app(config, root, apis)
-    # app.listen(config[NAME]['port'], address=config[NAME]['domain'])
+    # app.listen(config[NAME][PORT], address=config[NAME][HOST])
     server = HTTPServer(application)
-    server.bind(config[NAME]['port'], config[NAME]['domain'])
-    server.start(config[NAME]['threads'])
+    server.bind(config[NAME][PORT], config[NAME][HOST])
+    server.start(config[NAME][THREADS])
     tornado.ioloop.IOLoop.current().start()
