@@ -109,4 +109,11 @@ def gen_app(config, root):
 
 def start(config, root):
     app = gen_app(config, root)
-    app.run(host=config[NAME][HOST], port=config[NAME][PORT], debug=config[NAME][DEBUG] == 'True')
+    processes = config[NAME][PROCESSES]
+    threads = config[NAME][THREADS]
+    if processes:
+        app.run(host=config[NAME][HOST], port=config[NAME][PORT], debug=config[NAME][DEBUG] == 'True', processes=processes)
+    elif threads > 1:
+        app.run(host=config[NAME][HOST], port=config[NAME][PORT], debug=config[NAME][DEBUG] == 'True', threaded=True)
+    else:
+        app.run(host=config[NAME][HOST], port=config[NAME][PORT], debug=config[NAME][DEBUG] == 'True')
