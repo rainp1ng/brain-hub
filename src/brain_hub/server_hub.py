@@ -4,14 +4,14 @@ import yaml
 import importlib
 from brain_hub.conf import NAME
 from brain_hub.exceptions import *
-ROOT='/'.join(__file__.split("/")[: -1])
+ROOT = SLASH.join(__file__.split(SLASH)[: -1])
 sys.path.append(ROOT + '/server_tools')
 RESULT_INIT = {
-    'text': lambda **config: "'hello world'",
-    'json': lambda **config: "{}",
-    'redirect': lambda **config: "'http://%s:%s'".format(**config),
-    'template': lambda **config: "''",
-    'file': lambda **config: "''",
+    'text': lambda **config: DEFAULT_TEXT_RETURN,
+    'json': lambda **config: DEFAULT_JSON_RETURN,
+    'redirect': lambda **config: DEFAULT_REDIRECT_RETURN.format(**config),
+    'template': lambda **config: DEFAULT_TEMPLATE_RETURN,
+    'file': lambda **config: DEFAULT_FILE_RETURN,
 }
 with open(ROOT + '/templates/api_template.py', 'r') as reader:
     API_FILE = reader.read()
@@ -25,12 +25,12 @@ def get_default(_dict, key, default=None):
 
 
 def check_prefix(config):
-    prefix = get_default(config[NAME], 'prefix', '/')
-    if not prefix.endswith("/"):
-        prefix += '/'
-    if prefix[0] != '/':
-        prefix = '/' + prefix
-    config[NAME]['prefix'] = prefix
+    prefix = get_default(config[NAME], PREFIX, DEFAULT_PREFIX)
+    if not prefix.endswith(SLASH):
+        prefix += SLASH
+    if prefix[0] != SLASH:
+        prefix = SLASH + prefix
+    config[NAME][PREFIX] = prefix
 
 
 def check_config(config, name, default=None, e=None):
@@ -42,29 +42,29 @@ def check_config(config, name, default=None, e=None):
 
 
 def check(config):
-    check_config(config, 'port', e=PortMissedException("port has to be declared!"))
+    check_config(config, PORT, e=PortMissedException("port has to be declared!"))
     check_prefix(config)
-    check_config(config, 'static', 'static')
-    check_config(config, 'template', 'template')
-    check_config(config, 'domain', '127.0.0.1')
+    check_config(config, STATIC, STATIC)
+    check_config(config, TEMPLATE, TEMPLATE)
+    check_config(config, HOST, DEFAULT_HOST)
         
 
 def run(config, root):
     check(config)
-    print('running application: ', config[NAME]['name'], '%s:%s' % (config[NAME]['domain'], config[NAME]['port']))
-    hub = __import__('_' + config[NAME]['hub'])
+    print('running application: ', config[NAME][PROJECT_NAME], '%s:%s' % (config[NAME][HOST], config[NAME][PORT]))
+    hub = __import__(UNDERLINE + config[NAME][HUB])
     sys.path.append(root)
     hub.start(config, root)
 
 
 def init_api_file(pwd, api, config, sub_config):
     with open('%s%s.py' % (pwd, api), 'w') as writer:
-        writer.write("# -*- coding:utf-8 -*-\n")
-        for method in sub_config['method']:
+        writer.write("# -*- coding:utf-8 -*-" + LINE_FEED)
+        for method in sub_config[METHODS]:
             content = API_FILE.format(
-                method=method, params=', '.join(sub_config['params'].keys()), 
-                return_format=sub_config.get('return', 'text'), 
-                result_init=RESULT_INIT[sub_config.get('return', 'text')](**config[NAME])
+                method=method, params=', '.join(sub_config[PARAMS].keys()), 
+                return_format=sub_config.get(RETURN, DEFAULT_RETURN), 
+                result_init=RESULT_INIT[sub_config.get(RETURN, DEFAULT_RETURN)](**config[NAME])
                 )
             writer.write(content) 
 
@@ -74,10 +74,10 @@ def init(config, root, rebuild=False):
         if api == NAME:
             continue
 
-        paths = api.split("/")
+        paths = api.split(SLASH)
         pwd = root
         if len(paths) > 1:
-            pwd = root + '/'.join(paths[: -1]) + '/'
+            pwd = root + SLASH.join(paths[: -1]) + SLASH
 
         os.system("mkdir -p %s" % pwd)
         init_file = "%s/.%s" % (pwd, paths[-1])
@@ -102,11 +102,11 @@ def main():
     with open(config_path) as f: 
         config = yaml.load(f)
     
-    root = '/'.join(config_path.split("/")[: -1]) + '/%s/' % config[NAME]['name']
+    root = SLASH.join(config_path.split(SLASH)[: -1]) + '/%s/' % config[NAME][PROJECT_NAME]
     if mode == 'run':
         run(config, root)
     elif mode == 'init':
-        init(config, root, rebuild == '1')
+        init(config, root, rebuild == IS_REBUILD)
 
 
 if __name__ == '__main__':
