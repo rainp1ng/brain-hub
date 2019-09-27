@@ -1,6 +1,7 @@
 import sys, json
 import tornado.ioloop
 import tornado.web
+from tornado.httpserver import HTTPServer
 from brain_hub.conf import NAME
 from brain_hub.exceptions import *
 
@@ -103,5 +104,8 @@ def gen_app(config, root, apis):
 def start(config, root):
     apis = gen_apis(config, root)
     app = gen_app(config, root, apis)
-    app.listen(config[NAME]['port'], address=config[NAME]['domain'])
+    # app.listen(config[NAME]['port'], address=config[NAME]['domain'])
+    server = HTTPServer(application)
+    server.bind(config[NAME]['port'], config[NAME]['domain'])
+    server.start(config[NAME]['threads'])
     tornado.ioloop.IOLoop.current().start()
