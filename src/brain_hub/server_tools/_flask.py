@@ -4,7 +4,7 @@ from flask import request
 from flask import render_template, redirect
 from flask import make_response
 from flask.views import MethodView
-from brain_hub.conf import NAME
+from brain_hub.conf import *
 from brain_hub.exceptions import *
 # https://flask.palletsprojects.com/en/1.1.x/quickstart/
 
