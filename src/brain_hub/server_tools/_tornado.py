@@ -2,7 +2,7 @@ import sys, json
 import tornado.ioloop
 import tornado.web
 from tornado.httpserver import HTTPServer
-from brain_hub.conf import NAME
+from brain_hub.conf import *
 from brain_hub.exceptions import *
 
 
