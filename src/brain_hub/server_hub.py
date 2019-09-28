@@ -2,7 +2,7 @@ import os, sys
 import logging
 import yaml
 import importlib
-from brain_hub.conf import NAME
+from brain_hub.conf import *
 from brain_hub.exceptions import *
 ROOT = SLASH.join(__file__.split(SLASH)[: -1])
 sys.path.append(ROOT + '/server_tools')
