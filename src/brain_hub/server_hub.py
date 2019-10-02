@@ -1,20 +1,14 @@
-import os, sys
+import os
+import sys
 import logging
 import yaml
-import importlib
 from brain_hub.conf import *
 from brain_hub.exceptions import *
+from brain_hub.templates.api_template import API_TEMPLATE
+
+
 ROOT = SLASH.join(__file__.split(SLASH)[: -1])
-sys.path.append(ROOT + '/server_tools')
-RESULT_INIT = {
-    'text': lambda **config: DEFAULT_TEXT_RETURN,
-    'json': lambda **config: DEFAULT_JSON_RETURN,
-    'redirect': lambda **config: DEFAULT_REDIRECT_RETURN.format(**config),
-    'template': lambda **config: DEFAULT_TEMPLATE_RETURN,
-    'file': lambda **config: DEFAULT_FILE_RETURN,
-}
-with open(ROOT + '/templates/api_template.py', 'r') as reader:
-    API_FILE = reader.read()
+sys.path.append(ROOT + '%sserver_tools' % SLASH)
 
 
 def get_default(_dict, key, default=None):
@@ -24,89 +18,105 @@ def get_default(_dict, key, default=None):
         return _dict[key]
 
 
-def check_prefix(config):
-    prefix = get_default(config[NAME], PREFIX, DEFAULT_PREFIX)
-    if not prefix.endswith(SLASH):
-        prefix += SLASH
-    if prefix[0] != SLASH:
-        prefix = SLASH + prefix
-    config[NAME][PREFIX] = prefix
+def check_prefix(configs):
+    prefix = get_default(configs[NAME], PREFIX, DEFAULT_PREFIX)
+    if prefix.endswith('/'):
+        prefix = prefix[: -1]
+    if prefix[0] != '/':
+        prefix = '/' + prefix
+    configs[NAME][PREFIX] = prefix
 
 
-def check_config(config, name, default=None, e=None):
-    v = get_default(config[NAME], name, default)
+def check_config(configs, name, default=None, _type=str, e=None):
+    v = get_default(configs[NAME], name, default)
     if v is None and e:
         raise e
     else:
-        config[NAME][name] = v
+        configs[NAME][name] = _type(v)
 
 
-def check(config):
-    check_config(config, PORT, e=PortMissedException("port has to be declared!"))
-    check_prefix(config)
-    check_config(config, STATIC, STATIC)
-    check_config(config, TEMPLATE, TEMPLATE)
-    check_config(config, HOST, DEFAULT_HOST)
-        
+def check(configs):
+    check_config(configs, PORT, e=PortMissedException("port has to be declared!"))
+    check_prefix(configs)
+    check_config(configs, STATIC, STATIC)
+    check_config(configs, TEMPLATE, TEMPLATE)
+    check_config(configs, HOST, DEFAULT_HOST)
+    check_config(configs, PROCESSES, DEFAULT_PROCESSES, int)
+    check_config(configs, THREADS, DEFAULT_THREADS, int)
+    logging.debug('config:', configs)
 
-def run(config, root):
-    check(config)
-    print('running application: ', config[NAME][PROJECT_NAME], '%s:%s' % (config[NAME][HOST], config[NAME][PORT]))
-    hub = __import__(UNDERLINE + config[NAME][HUB])
+
+def run(configs, root):
+    check(configs)
+    print('running application: ', configs[NAME][PROJECT_NAME], '%s:%s' % (configs[NAME][HOST], configs[NAME][PORT]))
+    hub = __import__(UNDERLINE + configs[NAME][HUB])
     sys.path.append(root)
-    hub.start(config, root)
+    hub.start(configs, root)
 
 
-def init_api_file(pwd, api, config, sub_config):
-    with open('%s%s.py' % (pwd, api), 'w') as writer:
-        writer.write("# -*- coding:utf-8 -*-" + LINE_FEED)
+def init_api_file(pwd, api, configs, sub_config):
+    print('init api %s' % api)
+    file_paths = api.split('/')
+    _file = file_paths[-1]
+    if _file == '':
+        _file = INDEX_API_NAME
+    file_pwd = '%s%s%s' % (pwd, SLASH.join(file_paths[: -1]), SLASH)
+    if not os.path.exists(file_pwd):
+        os.mkdir(file_pwd)
+    with open('%s%s.py' % (file_pwd, _file), 'w', encoding=ENCODE) as writer:
+        writer.write(PY_HEADER + LINE_FEED)
         for method in sub_config[METHODS]:
-            content = API_FILE.format(
-                method=method, params=', '.join(sub_config[PARAMS].keys()), 
+            content = API_TEMPLATE.format(
+                method=method, params=''.join([p + ', ' for p in sub_config.get(PARAMS, DEFAULT_PARAMS).keys()]),
                 return_format=sub_config.get(RETURN, DEFAULT_RETURN), 
-                result_init=RESULT_INIT[sub_config.get(RETURN, DEFAULT_RETURN)](**config[NAME])
+                result_init=RESULT_INIT[sub_config.get(RETURN, DEFAULT_RETURN)](**configs[NAME])
                 )
             writer.write(content) 
 
 
-def init(config, root, rebuild=False):
-    for api in config:
+def init(configs, root, rebuild=False):
+    check(configs)
+    for api in configs:
         if api == NAME:
             continue
 
-        paths = api.split(SLASH)
+        paths = api.split('/')
         pwd = root
         if len(paths) > 1:
             pwd = root + SLASH.join(paths[: -1]) + SLASH
 
-        os.system("mkdir -p %s" % pwd)
-        init_file = "%s/.%s" % (pwd, paths[-1])
+        if not os.path.exists(pwd):
+            os.mkdir(pwd)
+        init_file = "%s%s.%s" % (pwd, SLASH, paths[-1] if paths[-1] != '' else INDEX_API_NAME)
         if not rebuild and os.path.exists(init_file):
-            print("api %s was already initialized, skip" % api)
+            print("api %s was already initialized (%s), skip" % (api, init_file))
             continue
 
-        init_api_file(pwd, paths[-1], config, config[api])
+        init_api_file(pwd, paths[-1], configs, configs[api])
         os.system("touch %s" % init_file)
         print("api %s init ok" % api)
 
 
 def main():
     if len(sys.argv) > 2:
-        config_path = sys.argv[1]
-        mode = sys.argv[2]
+        mode = sys.argv[1]
+        config_path = sys.argv[2]
         rebuild = sys.argv[3] if len(sys.argv) > 3 else 0
+
+        with open(config_path, encoding=ENCODE) as f:
+            configs = yaml.load(f, Loader=yaml.FullLoader)
+
+        config_pwd = SLASH.join(config_path.split(SLASH)[: -2])
+        if config_pwd == '':
+            config_pwd = '.'
+        root = config_pwd + '%s%s%s' % (SLASH, configs[NAME][PROJECT_NAME], SLASH)
+        if mode == 'run':
+            run(configs, root)
+        elif mode == 'init':
+            init(configs, root, rebuild == IS_REBUILD)
     else:
         print("usage: brainserver <config path> <mode> [rebuild]\n- mode\n\tinit: init api files\n\trun: run server\n- rebuild:\n\t1: rebuild")
         exit(-1)
-
-    with open(config_path) as f: 
-        config = yaml.load(f)
-    
-    root = SLASH.join(config_path.split(SLASH)[: -1]) + '/%s/' % config[NAME][PROJECT_NAME]
-    if mode == 'run':
-        run(config, root)
-    elif mode == 'init':
-        init(config, root, rebuild == IS_REBUILD)
 
 
 if __name__ == '__main__':

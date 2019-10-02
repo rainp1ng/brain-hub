@@ -5,7 +5,7 @@ from setuptools import find_packages, setup
 
 
 def get_long_description():
-    with open('README.rst', 'r') as reader:
+    with open('README.rst', 'r', encoding='UTF-8') as reader:
         return reader.read()
 
 
@@ -37,5 +37,6 @@ setup(
     extras_require={
         'mysql': ['MySQL-python'],
         'web server': ['flask', 'tornado'],
+        'yaml': ['yaml'],
     }
 )

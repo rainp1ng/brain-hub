@@ -1,0 +1,56 @@
+brainhub:
+    name: hello_world
+    domain: localhost
+    port: 8088
+    prefix: hello_world
+    hub: tornado  # flask, tornado
+    log: ./logs
+    static: file
+    threads: 10
+    debug: False
+
+/:
+    comment: index接口实现
+    method: 
+        - get
+    protocal: http
+    version: 1.0.0
+    return : text
+
+/first:  
+    comment: 二级接口实现
+    method: 
+        - get
+    protocal: http
+    version: 1.0.0
+    return: text  # text, json, redirect, file, template
+    params:
+        param3:
+            format: str
+            default: default 1
+            err_msg: 如果有啥错误,抛出该信息,当存在default值时不会用到
+            comment: 这是第一个参数的注释
+        param2:
+            format: str
+            err_msg: 如果有啥错误,抛出该信息,没有default值,所以能用到
+            comment: 这是第二个参数的注释
+
+
+/first/second:  
+    comment: 三级接口实现
+    method: 
+        - get
+        - post
+    protocal: http
+    version: 1.0.0
+    return: json 
+    params:
+        param1:
+            format: str
+            default: default 1
+            err_msg: 如果有啥错误,抛出该信息,当存在default值时不会用到
+            comment: 这是第一个参数的注释
+        param2:
+            format: str
+            err_msg: 如果有啥错误,抛出该信息,没有default值,所以能用到
+            comment: 这是第一个参数的注释

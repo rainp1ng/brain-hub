@@ -1,4 +1,10 @@
 __pycache__
 *.log
 .DStore
-
+brainhub_demo
+log
+logs
+build
+dist
+.idea
+brain_hub.egg-info

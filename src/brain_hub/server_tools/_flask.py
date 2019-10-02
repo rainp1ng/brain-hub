@@ -5,15 +5,16 @@ from flask import render_template, redirect
 from flask import make_response
 from flask.views import MethodView
 from brain_hub.conf import *
+from brain_hub.utils import *
 from brain_hub.exceptions import *
 # https://flask.palletsprojects.com/en/1.1.x/quickstart/
 
 
-def download(self, filename):
+def download(self, filename, buf_size=2000):
     print('i download file handler : ',filename)
     # Content-Type这里我写的时候是固定的了，也可以根据实际情况传值进来
-    self.set_header ('Content-Type', 'application/octet-stream')
-    self.set_header ('Content-Disposition', 'attachment; filename=' + filename)
+    self.set_header('Content-Type', 'application/octet-stream')
+    self.set_header('Content-Disposition', 'attachment; filename=' + filename)
     # 读取的模式需要根据实际情况进行修改
     with open(filename, 'rb') as f:
         while True:
@@ -34,17 +35,13 @@ RETURN_TYPE = {
 }
 
 
-def gen_func(config, root, api_name, method='GET'):
-    paths = api_name.split(SLASH)
-    if len(paths) > 1:
-        path = SLASH.join(paths[: -1])
-        sys.path.append(root + path)
-    _module = __import__(paths[-1])
+def gen_func(configs, root, api_name, method='GET'):
+    _module = append_api_path(root, api_name)
     
     def api_func(*argv, **kwargv):
         # 获取传入的参数
-        for param in config[PARAMS]:
-            default = config[PARAMS][param].get('default')
+        for param in configs.get(PARAMS, {}):
+            default = configs[PARAMS][param].get('default')
             if request.method == "POST":
                 kwargv[param] = request.form.get(param, default)
             elif request.method == "GET":
@@ -57,6 +54,7 @@ def gen_func(config, root, api_name, method='GET'):
         kwargv['cookies'] = request.cookies
         # 功能函数
         cookies = {}
+
         def set_cookie(k, v):
             cookies[k] = v
 
@@ -67,6 +65,7 @@ def gen_func(config, root, api_name, method='GET'):
             'set_header': None,
         }
         # 执行api逻辑
+        res = ('text', 'Error request!')
         if request.method == "GET":
             res = _module.get(**kwargv)
         elif request.method == "POST":
@@ -77,43 +76,50 @@ def gen_func(config, root, api_name, method='GET'):
     return api_func
 
 
-def gen_apis(config, root, app, func=None):
+def gen_apis(configs, root, app):
     apis = []
-    prefix = config[NAME][PREFIX]
-    for i, api in enumerate(config):
+    prefix = configs[NAME][PREFIX]
+    for i, api in enumerate(configs):
         if api == NAME:
             continue
 
         postfix = prefix + api
-        _methods = list(map(lambda m: m.upper(), config[api]['method']))
+        _methods = list(map(lambda m: m.upper(), configs[api]['method']))
+
         class ApiViewIndex(MethodView):
             methods = _methods
 
         for method in _methods:
             if method == 'GET':
-                ApiViewIndex.get = gen_func(config[api], root, api, method=method)
+                ApiViewIndex.get = gen_func(configs[api], root, api, method=method)
             elif method == 'POST':
-                ApiViewIndex.post = gen_func(config[api], root, api, method=method)
+                ApiViewIndex.post = gen_func(configs[api], root, api, method=method)
 
         app.add_url_rule(postfix, methods=_methods, view_func=ApiViewIndex.as_view(postfix))
 
     return apis
 
 
-def gen_app(config, root):
-    app = Flask(config[NAME][PROJECT_NAME], template_folder=root + config[NAME][TEMPLATE], 
-        static_folder=root + config[NAME][STATIC], static_url_path="/%s" % config[NAME][STATIC])
-    gen_apis(config, root, app)
+def gen_app(configs, root):
+    app = Flask(configs[NAME][PROJECT_NAME], template_folder=root + configs[NAME][TEMPLATE],
+                static_folder=root + configs[NAME][STATIC], static_url_path="/%s" % configs[NAME][STATIC])
+    gen_apis(configs, root, app)
     return app
 
 
-def start(config, root):
-    app = gen_app(config, root)
-    processes = config[NAME][PROCESSES]
-    threads = config[NAME][THREADS]
+def start(configs, root):
+    '''
+    web程序入口
+    :param configs:
+    :param root:
+    :return:
+    '''
+    app = gen_app(configs, root)
+    processes = configs[NAME][PROCESSES]
+    threads = configs[NAME][THREADS]
     if processes:
-        app.run(host=config[NAME][HOST], port=config[NAME][PORT], debug=config[NAME][DEBUG] == 'True', processes=processes)
+        app.run(host=configs[NAME][HOST], port=configs[NAME][PORT], debug=configs[NAME][DEBUG] == 'True', processes=processes)
     elif threads > 1:
-        app.run(host=config[NAME][HOST], port=config[NAME][PORT], debug=config[NAME][DEBUG] == 'True', threaded=True)
+        app.run(host=configs[NAME][HOST], port=configs[NAME][PORT], debug=configs[NAME][DEBUG] == 'True', threaded=True)
     else:
-        app.run(host=config[NAME][HOST], port=config[NAME][PORT], debug=config[NAME][DEBUG] == 'True')
+        app.run(host=configs[NAME][HOST], port=configs[NAME][PORT], debug=configs[NAME][DEBUG] == 'True')
