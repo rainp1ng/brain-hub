@@ -22,7 +22,7 @@ def check_prefix(configs):
     prefix = get_default(configs[NAME], PREFIX, DEFAULT_PREFIX)
     if prefix.endswith('/'):
         prefix = prefix[: -1]
-    if prefix[0] != '/':
+    if len(prefix) > 0 and prefix[0] != '/':
         prefix = '/' + prefix
     configs[NAME][PREFIX] = prefix
 
