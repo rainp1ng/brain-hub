@@ -5,6 +5,7 @@ from tornado.httpserver import HTTPServer
 from brain_hub.conf import *
 from brain_hub.utils import *
 from brain_hub.exceptions import *
+import traceback
 
 
 def download(self, filename, buf_size=2000):
@@ -24,12 +25,44 @@ def download(self, filename, buf_size=2000):
 
 
 RETURN_TYPE = {
-    "text": lambda res: "self.write('''%s''')" % res,
-    "json": lambda res: "self.write(json.dumps(%s))" % res,
-    "redirect": lambda res: "self.redirect('''%s''')" % res,
-    "template": lambda res: "self.render('''%s''')" % res,
-    "file": lambda res: "download(self, '''%s''')" % res,
+    "text": lambda res, **kwargv: "self.write('''%s''')" % res,
+    "json": lambda res, **kwargv: "self.write(json.dumps(%s))" % res,
+    "redirect": lambda res, **kwargv: "self.redirect('''%s''', **kwargv)" % res,
+    "template": lambda res, **kwargv: "self.render('''%s''', **kwargv)" % res,
+    "file": lambda res, **kwargv: "download(self, '''%s'', **kwargv)" % res,
 }
+
+
+def parse_param(self, configs, param, kwargv):
+    errs = None
+    try:
+        default = configs[PARAMS][param].get('default')
+        value = self.get_argument(param, default)
+        if configs[PARAMS][param].get('err_msg') and not value:
+            errs = {'msg': configs[PARAMS][param]['err_msg'], 'code': configs[PARAMS][param].get('err_code', -500)}
+        else:
+            _format = eval(configs[PARAMS][param].get('format', 'str'))
+            kwargv[param] = _format(value)
+    except Exception as e:
+        traceback.print_exc()
+        errs = {'msg': 'Parsing param %s err, Please contact admin! Error details: %s. ' % (param, str(e)), 'code': -1024}
+    finally:
+        return errs
+
+
+def set_kwargv_req_info(self, kwargv):
+    # 获取header信息
+    kwargv['headers'] = self.request.headers
+    kwargv['remote_ip'] = self.request.remote_ip 
+    # 获取cookie信息
+    kwargv['cookies'] = self.cookies
+    kwargv['func'] = {
+        'set_cookie': self.set_cookie,
+        'set_secure_cookie': self.set_secure_cookie,
+        'get_secure_cookie': self.get_secure_cookie,
+        'set_header': self.set_header,
+    }
+   
 
 
 def gen_func(configs, root, api_name, method='get'):
@@ -37,24 +70,23 @@ def gen_func(configs, root, api_name, method='get'):
     
     def pfunc(self, *argv, **kwargv):
         # 获取传入的参数
+        errs = None
         for param in configs.get(PARAMS, {}):
-            default = configs[PARAMS][param].get('default')
-            kwargv[param] = self.get_argument(param, default)
+            errs = parse_param(self, configs, param, kwargv)
+            if errs:
+                break
         
-        # 获取header信息
-        kwargv['headers'] = self.request.headers
-        kwargv['remote_ip'] = self.request.remote_ip 
-        # 获取cookie信息
-        kwargv['cookies'] = self.cookies
-        kwargv['func'] = {
-            'set_cookie': self.set_cookie,
-            'set_secure_cookie': self.set_secure_cookie,
-            'get_secure_cookie': self.get_secure_cookie,
-            'set_header': self.set_header,
-        }
-        # 执行api逻辑
-        res = getattr(_module, method)(*argv, **kwargv)
-        exec(RETURN_TYPE[res[0]](res[1]))  # 返回结果
+        if errs:
+            exec(RETURN_TYPE['json'](errs))  # 参数有误，返回报错
+        else:
+            set_kwargv_req_info(self, kwargv)
+            # 执行api逻辑
+            res = getattr(_module, method)(*argv, **kwargv)
+            if len(res) > 2:
+                fkwargv = res[2]
+            else:
+                fkwargv = {}
+            exec(RETURN_TYPE[res[0]](res[1], **fkwargv))  # 返回结果
 
     return pfunc
 

@@ -29,10 +29,51 @@ def download(self, filename, buf_size=2000):
 RETURN_TYPE = {
     "text": lambda res: "'''%s'''" % res,
     "json": lambda res: "json.dumps(%s)" % res,
-    "redirect": lambda res: "redirect('''%s''')" % res,
-    "template": lambda res: "render_template('''%s''')" % res,
-    "file": lambda res: "download(self, '''%s''')" % res,
+    "redirect": lambda res, **kwargv: "redirect('''%s''', **kwargv)" % res,
+    "template": lambda res, **kwargv: "render_template('''%s''', **kwargv)" % res,
+    "file": lambda res, **kwargv: "download(self, '''%s''', **kwargv)" % res,
 }
+
+
+def parse_param(configs, param, kwargv):
+    errs = None
+    try:
+        default = configs[PARAMS][param].get('default')
+        if request.method == "POST":
+            value = request.form.get(param, default)
+        elif request.method == "GET":
+            value = request.args.get(param, default)
+
+        if configs[PARAMS][param].get('err_msg') and not value:
+            errs = {'msg': configs[PARAMS][param]['err_msg'], 'code': configs[PARAMS][param].get('err_code', -500)}
+        else:
+            _format = eval(configs[PARAMS][param].get('format', 'str'))
+            kwargv[param] = _format(value)
+    except Exception as e:
+        traceback.print_exc()
+        errs = {'msg': 'Parsing param %s err, Please contact admin! Error details: %s. ' % (param, str(e)), 'code': -1024}
+    finally:
+        return errs
+
+
+def set_kwargv_req_info(kwargv):
+    # 获取header信息
+    kwargv['headers'] = request.headers
+    kwargv['remote_ip'] = request.remote_addr
+    # 获取cookie信息
+    kwargv['cookies'] = request.cookies
+    # 功能函数
+    cookies = {}
+
+    def set_cookie(k, v):
+        cookies[k] = v
+
+    kwargv['func'] = {
+        'set_cookie': set_cookie,
+        'set_secure_cookie': None,
+        'get_secure_cookie': None,
+        'set_header': None,
+    }
 
 
 def gen_func(configs, root, api_name, method='GET'):
@@ -40,38 +81,28 @@ def gen_func(configs, root, api_name, method='GET'):
     
     def api_func(*argv, **kwargv):
         # 获取传入的参数
+        errs = None
         for param in configs.get(PARAMS, {}):
-            default = configs[PARAMS][param].get('default')
-            if request.method == "POST":
-                kwargv[param] = request.form.get(param, default)
-            elif request.method == "GET":
-                kwargv[param] = request.args.get(param, default)
-            
-        # 获取header信息
-        kwargv['headers'] = request.headers
-        kwargv['remote_ip'] = request.remote_addr
-        # 获取cookie信息
-        kwargv['cookies'] = request.cookies
-        # 功能函数
-        cookies = {}
+            errs = parse_param(configs, param, kwargv)
+            if errs:
+                break
 
-        def set_cookie(k, v):
-            cookies[k] = v
+        if errs:
+            return eval(RETURN_TYPE['json'](errs))  # 参数有误，返回报错
+        else:
+            set_kwargv_req_info(kwargv)
+            # 执行api逻辑
+            res = ('text', 'Error request!')
+            if request.method == "GET":
+                res = _module.get(**kwargv)
+            elif request.method == "POST":
+                res = _module.post(**kwargv)
 
-        kwargv['func'] = {
-            'set_cookie': set_cookie,
-            'set_secure_cookie': None,
-            'get_secure_cookie': None,
-            'set_header': None,
-        }
-        # 执行api逻辑
-        res = ('text', 'Error request!')
-        if request.method == "GET":
-            res = _module.get(**kwargv)
-        elif request.method == "POST":
-            res = _module.post(**kwargv)
-
-        return eval(RETURN_TYPE[res[0]](res[1]))  # 返回结果
+            if len(res) > 2:
+                fkwargv = res[2]
+            else:
+                fkwargv = {}
+            return eval(RETURN_TYPE[res[0]](res[1], **fkwargv))  # 返回结果
 
     return api_func
 
