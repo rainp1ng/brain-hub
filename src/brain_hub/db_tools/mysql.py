@@ -1,8 +1,8 @@
 #!/usr/bin/python
 __author__ = 'zhuyuping'
 import MySQLdb
-import multiprocessing
 from functools import reduce
+import multiprocessing
 import logging
 
 
@@ -158,7 +158,7 @@ class RainDB(object):
         n_val = "('"
         for i, desc in enumerate(val):
             n_desc += desc + ","
-            n_val += self.db.escape_string(str(val[desc]))+"','"
+            n_val += self.db.escape_string(str(val[desc])).decode() + "','"
             if i == len(val)-1:
                 n_desc = n_desc[:len(n_desc)-1]+")"
                 n_val = n_val[:len(n_val)-2]+")"
@@ -187,7 +187,8 @@ class RainDB(object):
         '''
         n_desc, n_val = self.concat_new_records(val)
         sql_str = "insert into %s %s value %s " % (table, n_desc, n_val)
-        # loggingging.debug(sql_str)
+        # logging.debug(sql_str)
+        print(sql_str)
         self.execute(sql_str)
         if auto_commit:
             self.commit()
@@ -220,14 +221,14 @@ class RainDB(object):
         if auto_commit:
             self.commit()
 
-    def batch_insert_or_update(self, table, vals, _async=False, parrallels=1):
+    def batch_insert_or_update(self, table, vals, async=False, parrallels=1):
         '''
 
         :param table:
         :param vals:
         :return:
         '''
-        if _async:
+        if async:
             cnt = len(vals)
             max_batch_nums = cnt / parrallels + 1
             max_batch_nums = max_batch_nums if max_batch_nums > 0 else 1
@@ -286,6 +287,7 @@ class RainDB(object):
         '''
         sql_str = "select %s from %s where %s" % (desc, table, cond)
         # loggingging.debug(sql_str)
+        print(sql_str)
         return self.query(sql_str)
 
     def query(self, sql):
