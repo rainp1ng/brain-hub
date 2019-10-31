@@ -1,3 +1,4 @@
+import logging
 import sys, json
 from flask import Flask
 from flask import request
@@ -7,11 +8,12 @@ from flask.views import MethodView
 from brain_hub.conf import *
 from brain_hub.utils import *
 from brain_hub.exceptions import *
+from brain_hub.server_tools.common import *
 # https://flask.palletsprojects.com/en/1.1.x/quickstart/
 
 
 def download(self, filename, buf_size=2000):
-    print('i download file handler : ',filename)
+    logging.info('i download file handler : ',filename)
     # Content-Type这里我写的时候是固定的了，也可以根据实际情况传值进来
     self.set_header('Content-Type', 'application/octet-stream')
     self.set_header('Content-Disposition', 'attachment; filename=' + filename)
@@ -28,32 +30,11 @@ def download(self, filename, buf_size=2000):
 
 RETURN_TYPE = {
     "text": lambda res: "'''%s'''" % res,
-    "json": lambda res: "json.dumps(%s)" % res,
-    "redirect": lambda res, **kwargv: "redirect('''%s''', **kwargv)" % res,
-    "template": lambda res, **kwargv: "render_template('''%s''', **kwargv)" % res,
-    "file": lambda res, **kwargv: "download(self, '''%s''', **kwargv)" % res,
+    "json": lambda res: "json.dumps(%s, **fkwargv)" % res,
+    "redirect": lambda res, **kwargv: "redirect('''%s''', **fkwargv)" % res,
+    "template": lambda res, **kwargv: "render_template('''%s''', **fkwargv)" % res,
+    "file": lambda res, **kwargv: "download(self, '''%s''', **fkwargv)" % res,
 }
-
-
-def parse_param(configs, param, kwargv):
-    errs = None
-    try:
-        default = configs[PARAMS][param].get('default')
-        if request.method == "POST":
-            value = request.form.get(param, default)
-        elif request.method == "GET":
-            value = request.args.get(param, default)
-
-        if configs[PARAMS][param].get('err_msg') and not value:
-            errs = {'msg': configs[PARAMS][param]['err_msg'], 'code': configs[PARAMS][param].get('err_code', -500)}
-        else:
-            _format = eval(configs[PARAMS][param].get('format', 'str'))
-            kwargv[param] = _format(value)
-    except Exception as e:
-        traceback.print_exc()
-        errs = {'msg': 'Parsing param %s err, Please contact admin! Error details: %s. ' % (param, str(e)), 'code': -1024}
-    finally:
-        return errs
 
 
 def set_kwargv_req_info(kwargv):
@@ -75,34 +56,38 @@ def set_kwargv_req_info(kwargv):
         'set_header': None,
     }
 
+GET_ARGUMENT_FUNC = {
+    'get': lambda *argv, **kwargv: request.args.get(*argv, **kwargv),
+    'post': lambda *argv, **kwargv: request.form.get(*argv, **kwargv)
+}
+
 
 def gen_func(configs, root, api_name, method='GET'):
     _module = append_api_path(root, api_name)
+    api_configs = configs[api_name]
     
     def api_func(*argv, **kwargv):
         # 获取传入的参数
+        method = request.method.lower()
         errs = None
-        for param in configs.get(PARAMS, {}):
-            errs = parse_param(configs, param, kwargv)
+        fkwargv = {}
+        for param in api_configs.get(PARAMS, {}):
+            errs = parse_param(api_configs, param, kwargv, GET_ARGUMENT_FUNC[method])
             if errs:
                 break
 
         if errs:
+            PARAMS_SET['json'](fkwargv, configs) 
             return eval(RETURN_TYPE['json'](errs))  # 参数有误，返回报错
         else:
             set_kwargv_req_info(kwargv)
             # 执行api逻辑
             res = ('text', 'Error request!')
-            if request.method == "GET":
-                res = _module.get(**kwargv)
-            elif request.method == "POST":
-                res = _module.post(**kwargv)
-
+            res = getattr(_module, method)(*argv, **kwargv)
             if len(res) > 2:
                 fkwargv = res[2]
-            else:
-                fkwargv = {}
-            return eval(RETURN_TYPE[res[0]](res[1], **fkwargv))  # 返回结果
+            PARAMS_SET[res[0]](fkwargv, configs) 
+            return eval(RETURN_TYPE[res[0]](res[1]))  # 返回结果
 
     return api_func
 
@@ -122,9 +107,9 @@ def gen_apis(configs, root, app):
 
         for method in _methods:
             if method == 'GET':
-                ApiViewIndex.get = gen_func(configs[api], root, api, method=method)
+                ApiViewIndex.get = gen_func(configs, root, api, method=method)
             elif method == 'POST':
-                ApiViewIndex.post = gen_func(configs[api], root, api, method=method)
+                ApiViewIndex.post = gen_func(configs, root, api, method=method)
 
         app.add_url_rule(postfix, methods=_methods, view_func=ApiViewIndex.as_view(postfix))
 
@@ -148,9 +133,10 @@ def start(configs, root):
     app = gen_app(configs, root)
     processes = configs[NAME][PROCESSES]
     threads = configs[NAME][THREADS]
+    
     if processes:
-        app.run(host=configs[NAME][HOST], port=configs[NAME][PORT], debug=configs[NAME][DEBUG] == 'True', processes=processes)
+        app.run(host=configs[NAME][HOST], port=configs[NAME][PORT], debug=configs[NAME].get(DEBUG, True), processes=processes)
     elif threads > 1:
-        app.run(host=configs[NAME][HOST], port=configs[NAME][PORT], debug=configs[NAME][DEBUG] == 'True', threaded=True)
+        app.run(host=configs[NAME][HOST], port=configs[NAME][PORT], debug=configs[NAME].get(DEBUG, True), threaded=True)
     else:
-        app.run(host=configs[NAME][HOST], port=configs[NAME][PORT], debug=configs[NAME][DEBUG] == 'True')
+        app.run(host=configs[NAME][HOST], port=configs[NAME][PORT], debug=configs[NAME].get(DEBUG, True))

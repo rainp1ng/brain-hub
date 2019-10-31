@@ -187,8 +187,8 @@ class RainDB(object):
         '''
         n_desc, n_val = self.concat_new_records(val)
         sql_str = "insert into %s %s value %s " % (table, n_desc, n_val)
-        # logging.debug(sql_str)
-        print(sql_str)
+        logging.debug(sql_str)
+        # print(sql_str)
         self.execute(sql_str)
         if auto_commit:
             self.commit()
@@ -221,14 +221,14 @@ class RainDB(object):
         if auto_commit:
             self.commit()
 
-    def batch_insert_or_update(self, table, vals, async=False, parrallels=1):
+    def batch_insert_or_update(self, table, vals, is_async=False, parrallels=1):
         '''
 
         :param table:
         :param vals:
         :return:
         '''
-        if async:
+        if is_async:
             cnt = len(vals)
             max_batch_nums = cnt / parrallels + 1
             max_batch_nums = max_batch_nums if max_batch_nums > 0 else 1
@@ -258,7 +258,7 @@ class RainDB(object):
         '''
         n_desc, n_val = self.concat_new_records(val)
         sql_str = "replace into %s %s value %s " % (table, n_desc, n_val)
-        # loggingging.debug(sql_str)
+        loggingging.debug(sql_str)
         self.execute(sql_str)
         if auto_commit:
             self.commit()
@@ -286,8 +286,8 @@ class RainDB(object):
         :return: records in list
         '''
         sql_str = "select %s from %s where %s" % (desc, table, cond)
-        # loggingging.debug(sql_str)
-        print(sql_str)
+        logging.debug(sql_str)
+        # print(sql_str)
         return self.query(sql_str)
 
     def query(self, sql):
@@ -296,7 +296,7 @@ class RainDB(object):
         :param sql: sql string
         :return: query result
         '''
-        logging.info(sql)
+        logging.debug(sql)
         self.execute(sql)
         r_desc = self.cursor.description
         rows = self.cursor.fetchall()
@@ -318,9 +318,9 @@ class RainDB(object):
         :param kwargs: kwargs
         :return: None
         '''
-        logging.info("commiting transaction ... ")
+        logging.debug("commiting transaction ... ")
         self.db.commit(*args, **kwargs)
-        logging.info("done")
+        logging.debug("done")
 
     def delete(self, table, cond="1=1"):
         '''
@@ -343,9 +343,9 @@ class RainDB(object):
         '''
         n_val = ""
         for i, desc in enumerate(val):
-            n_val += desc + " = "+val[desc]
+            n_val += "%s = %s" % (desc, val[desc])
             if i != len(val)-1:
-                n_val += ","
+                n_val += ", "
         sql_str = "update %s set %s where %s" % (table, n_val, cond)
         logging.debug(sql_str)
         self.execute(sql_str)

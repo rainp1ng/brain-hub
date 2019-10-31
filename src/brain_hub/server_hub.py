@@ -1,7 +1,8 @@
 import os
 import sys
-import logging
+import time
 import yaml
+import logging
 from brain_hub.conf import *
 from brain_hub.exceptions import *
 from brain_hub.templates.api_template import API_TEMPLATE
@@ -43,12 +44,12 @@ def check(configs):
     check_config(configs, HOST, DEFAULT_HOST)
     check_config(configs, PROCESSES, DEFAULT_PROCESSES, int)
     check_config(configs, THREADS, DEFAULT_THREADS, int)
-    logging.debug('config:', configs)
+    logging.debug('config: %s ' % configs)
 
 
 def run(configs, root):
     check(configs)
-    print('running application: ', configs[NAME][PROJECT_NAME], '%s:%s' % (configs[NAME][HOST], configs[NAME][PORT]))
+    logging.info('running application: %s %s' % (configs[NAME][PROJECT_NAME], '%s:%s' % (configs[NAME][HOST], configs[NAME][PORT])))
     hub = __import__(UNDERLINE + configs[NAME][HUB])
     sys.path.append(root)
     hub.start(configs, root)
@@ -105,6 +106,15 @@ def main():
 
         with open(config_path, encoding=ENCODE) as f:
             configs = yaml.load(f, Loader=yaml.FullLoader)
+
+        logs_path = configs[NAME].get(LOG, DEFAULT_LOG)
+        os.system("mkdir -p %s" % logs_path)
+        logging.basicConfig(
+            filename= logs_path + '/%s_%s.log' % (configs[NAME][PROJECT_NAME], time.strftime('%Y-%m-%d')),
+            filemode="a",
+            format="[%(asctime)s]%(name)s-%(levelname)s:%(message)s",
+            level=logging.DEBUG if configs[NAME].get(DEBUG, True) else logging.INFO
+        ) 
 
         config_pwd = SLASH.join(config_path.split(SLASH)[: -2])
         if config_pwd == '':
