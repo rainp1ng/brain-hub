@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import time
 import yaml
@@ -55,8 +56,31 @@ def run(configs, root):
     hub.start(configs, root)
 
 
-def init_api_file(pwd, api, configs, sub_config):
-    print('init api %s' % api)
+def new_file(writer, configs, sub_config):
+    writer.write(PY_HEADER + LINE_FEED)
+    for method in sub_config[METHODS]:
+        content = API_TEMPLATE.format(
+            method=method, params=''.join([p + ', ' for p in sub_config.get(PARAMS, DEFAULT_PARAMS).keys()]),
+            return_format=sub_config.get(RETURN, DEFAULT_RETURN), 
+            result_init=RESULT_INIT[sub_config.get(RETURN, DEFAULT_RETURN)](**configs[NAME])
+            )
+        writer.write(content) 
+
+
+def update_file(writer, configs, sub_config, old_content):
+    new_content = ''
+    for method in sub_config[METHODS]:
+        origin = 'def {method}\([^\)]+\):'.format(method=method)
+        new = 'def {method}({params}*argv, **kwargv):'.format(
+            method=method, 
+            params=''.join([p + ', ' for p in sub_config.get(PARAMS, DEFAULT_PARAMS).keys()])
+        )
+        new_content = re.sub(origin, new, old_content)
+    writer.write(new_content)
+        
+
+def init_api_file(pwd, api, configs, sub_config, update=False):
+    print('%s api %s' % ('update' if update else 'init', api))
     file_paths = api.split('/')
     _file = file_paths[-1]
     if _file == '':
@@ -64,15 +88,16 @@ def init_api_file(pwd, api, configs, sub_config):
     file_pwd = '%s%s%s' % (pwd, SLASH.join(file_paths[: -1]), SLASH)
     if not os.path.exists(file_pwd):
         os.mkdir(file_pwd)
-    with open('%s%s.py' % (file_pwd, _file), 'w', encoding=ENCODE) as writer:
-        writer.write(PY_HEADER + LINE_FEED)
-        for method in sub_config[METHODS]:
-            content = API_TEMPLATE.format(
-                method=method, params=''.join([p + ', ' for p in sub_config.get(PARAMS, DEFAULT_PARAMS).keys()]),
-                return_format=sub_config.get(RETURN, DEFAULT_RETURN), 
-                result_init=RESULT_INIT[sub_config.get(RETURN, DEFAULT_RETURN)](**configs[NAME])
-                )
-            writer.write(content) 
+
+    api_file = '%s%s.py' % (file_pwd, _file)
+    if update:
+        with open(api_file, 'r', encoding=ENCODE) as reader:
+            content = reader.read()
+        with open(api_file, 'w', encoding=ENCODE) as writer:
+            update_file(writer, configs, sub_config, content)
+    else:
+        with open(api_file, 'w', encoding=ENCODE) as writer:
+            new_file(writer, configs, sub_config)
 
 
 def init(configs, root, rebuild=False):
@@ -89,11 +114,13 @@ def init(configs, root, rebuild=False):
         if not os.path.exists(pwd):
             os.mkdir(pwd)
         init_file = "%s%s.%s" % (pwd, SLASH, paths[-1] if paths[-1] != '' else INDEX_API_NAME)
+        update = False
         if not rebuild and os.path.exists(init_file):
-            print("api %s was already initialized (%s), skip" % (api, init_file))
-            continue
+            # print("api %s was already initialized (%s), skip" % (api, init_file))
+            # continue
+            update = True
 
-        init_api_file(pwd, paths[-1], configs, configs[api])
+        init_api_file(pwd, paths[-1], configs, configs[api], update)
         os.system("touch %s" % init_file)
         print("api %s init ok" % api)
 
