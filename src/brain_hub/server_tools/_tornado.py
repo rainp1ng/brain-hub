@@ -39,6 +39,7 @@ def set_kwargv_req_info(self, kwargv):
     # 获取header信息
     kwargv['headers'] = self.request.headers
     kwargv['remote_ip'] = self.request.remote_ip 
+    kwargv['files'] = self.request.files
     # 获取cookie信息
     kwargv['cookies'] = self.cookies
     kwargv['func'] = {
