@@ -135,6 +135,13 @@ def main():
             configs = yaml.load(f, Loader=yaml.FullLoader)
 
         logs_path = configs[NAME].get(LOG, DEFAULT_LOG)
+        for api_file in configs[NAME].get(INCLUDE, DEFAULT_INCLUDE):
+            with open(api_file, encoding=ENCODE) as f:
+                api_config = yaml.load(f, Loader=yaml.FullLoader) 
+                # print(api_file, api_config)
+                if api_config:
+                    configs = dict(configs, **api_config)
+
         os.system("mkdir -p %s" % logs_path)
         logging.basicConfig(
             filename= logs_path + '/%s_%s.log' % (configs[NAME][PROJECT_NAME], time.strftime('%Y-%m-%d')),

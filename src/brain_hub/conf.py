@@ -24,6 +24,8 @@ DEFAULT_LOG = 'log'
 STATIC = 'static'
 TEMPLATE = 'template'
 DEBUG = 'debug'
+INCLUDE = 'include'
+DEFAULT_INCLUDE = []
 
 # api configs
 INDEX_API_NAME = '__index__'
